@@ -1,0 +1,30 @@
+/* Cleaned up styles */
+:root {
+    --bg-primary: #f8fafc;
+    --bg-card: #ffffff;
+    --text-primary: #0f172a;
+    --text-secondary: #64748b;
+    --accent: #6366f1;
+    --accent-hover: #4f46e5;
+    --border: #e2e8f0;
+    --danger: #ef4444;
+}
+
+[data-theme='dark'] {
+    --bg-primary: #0f172a;
+    --bg-card: #1e293b;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --accent: #818cf8;
+    --accent-hover: #6366f1;
+    --border: #334155;
+}
+
+body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    transition: background-color 0.3s, color 0.3s;
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+}

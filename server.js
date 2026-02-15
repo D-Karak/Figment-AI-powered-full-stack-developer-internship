@@ -75,31 +75,53 @@ if (rowCount === 0) {
 // Routes
 
 // GET /bookmarks
+
+// GET /bookmarks
 app.get('/bookmarks', (req, res) => {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
     const { tag } = req.query;
+
+    let whereClause = '';
+    const params = [];
+
+    if (tag) {
+        whereClause = ` WHERE b.id IN (SELECT bookmark_id FROM tags WHERE tag = ?) `;
+        params.push(tag.toLowerCase());
+    }
+
+    // Get total count for pagination
+    const countQuery = `SELECT count(*) as count FROM bookmarks b ${whereClause}`;
+    const total = db.prepare(countQuery).get(...params).count;
+
+    // Get paginated data
     let query = `
     SELECT b.id, b.url, b.title, b.description, b.created_at as createdAt, GROUP_CONCAT(t.tag) as tags 
     FROM bookmarks b
     LEFT JOIN tags t ON b.id = t.bookmark_id
+    ${whereClause}
+    GROUP BY b.id 
+    ORDER BY b.created_at DESC
+    LIMIT ? OFFSET ?
   `;
 
-    const params = [];
-
-    if (tag) {
-        query += ` WHERE b.id IN (SELECT bookmark_id FROM tags WHERE tag = ?) `;
-        params.push(tag.toLowerCase());
-    }
-
-    query += ` GROUP BY b.id ORDER BY b.created_at DESC`;
-
-    const rows = db.prepare(query).all(...params);
+    const rows = db.prepare(query).all(...params, limit, offset);
 
     const bookmarks = rows.map(row => ({
         ...row,
         tags: row.tags ? row.tags.split(',') : []
     }));
 
-    res.json(bookmarks);
+    res.json({
+        data: bookmarks,
+        pagination: {
+            page,
+            limit,
+            total,
+            totalPages: Math.ceil(total / limit)
+        }
+    });
 });
 
 // POST /bookmarks

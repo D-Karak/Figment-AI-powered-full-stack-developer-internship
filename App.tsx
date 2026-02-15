@@ -34,11 +34,13 @@ const Icons = {
 // --- API Service ---
 
 const API = {
-    getBookmarks: async (tag?: string): Promise<Bookmark[]> => {
-        const url = tag
-            ? `http://localhost:3000/bookmarks?tag=${encodeURIComponent(tag)}`
-            : 'http://localhost:3000/bookmarks';
-        const res = await fetch(url);
+    getBookmarks: async (tag?: string, page: number = 1): Promise<{ data: Bookmark[], pagination: any }> => {
+        const url = new URL('http://localhost:3000/bookmarks');
+        if (tag) url.searchParams.append('tag', tag);
+        url.searchParams.append('page', page.toString());
+        url.searchParams.append('limit', '5');
+
+        const res = await fetch(url.toString());
         if (!res.ok) throw new Error('Failed to fetch bookmarks');
         return res.json();
     },
@@ -81,6 +83,7 @@ const API = {
 
 // --- Styles ---
 
+
 const styles = `
   :root {
     --bg-primary: #f8fafc;
@@ -107,6 +110,8 @@ const styles = `
     background-color: var(--bg-primary);
     color: var(--text-primary);
     transition: background-color 0.3s, color 0.3s;
+    margin: 0;
+    font-family: 'Inter', sans-serif;
   }
 
   .container { max-width: 900px; margin: 0 auto; padding: 20px; }
@@ -140,16 +145,43 @@ const styles = `
     transition: transform 0.2s, box-shadow 0.2s;
   }
   .card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+  .card:hover .card-actions { opacity: 1; }
+
+  .card-header { display: flex; justify-content: space-between; align-items: flex-start; }
+  .card-content { flex: 1; }
+  
+  .card-title { 
+    margin: 0 0 4px 0; font-size: 1.125rem; font-weight: 600; 
+    color: var(--accent); display: inline-flex; align-items: center; gap: 6px; 
+    text-decoration: none; transition: color 0.2s;
+  }
+  .card-title:hover { color: var(--accent-hover); }
+  
+  .card-desc { 
+    margin: 4px 0 12px 0; color: var(--text-secondary); 
+    font-size: 0.875rem; line-height: 1.5; 
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+
+  .card-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+  
+  .card-actions { display: flex; gap: 4px; margin-left: 16px; opacity: 0; transition: opacity 0.2s; }
+  
+  .card-footer {
+    display: flex; align-items: center; gap: 12px; margin-top: 16px; 
+    padding-top: 12px; border-top: 1px solid var(--border);
+    font-size: 0.75rem; font-weight: 500; color: var(--text-secondary);
+  }
 
   .tag {
     display: inline-flex; align-items: center;
     padding: 2px 10px; border-radius: 999px;
     font-size: 0.75rem; font-weight: 600;
     background: rgba(99, 102, 241, 0.1); color: var(--accent);
-    margin-right: 6px; margin-top: 6px; cursor: pointer;
-    transition: all 0.2s;
+    cursor: pointer; transition: all 0.2s;
   }
   .tag:hover, .tag.active { background: var(--accent); color: white; }
+  .tag .close-icon { margin-left: 4px; opacity: 0.6; }
 
   .modal-overlay {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -168,15 +200,29 @@ const styles = `
   }
 
   .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
-  .logo { font-size: 1.5rem; font-weight: 800; color: var(--text-primary); display: flex; align-items: center; gap: 8px; }
+  .header-actions { display: flex; gap: 12px; }
+  
+  .logo { font-size: 1.5rem; font-weight: 800; color: var(--text-primary); display: flex; align-items: center; gap: 12px; }
+  .logo-icon {
+    width: 32px; height: 32px; background: var(--accent); border-radius: 8px;
+    display: flex; align-items: center; justify-content: center; color: white;
+  }
+
   .filters { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; align-items: center; }
   .search-box { position: relative; flex: 1; min-width: 200px; }
   .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-secondary); }
   .search-input { padding-left: 36px; }
 
-  .bookmark-meta { display: flex; gap: 12px; color: var(--text-secondary); font-size: 0.8rem; margin-top: 12px; align-items: center; }
-  .bookmark-domain { font-weight: 600; }
+  .active-filter {
+    display: flex; align-items: center; gap: 8px; 
+    background: var(--bg-card); padding: 6px 12px; 
+    border-radius: 8px; border: 1px solid var(--accent); 
+    color: var(--accent); font-size: 0.9rem; font-weight: 600;
+  }
+
   .empty-state { text-align: center; padding: 40px; color: var(--text-secondary); }
+  
+  .pagination { display: flex; justify-content: center; align-items: center; gap: 16px; margin-top: 32px; }
 `;
 
 // --- Components ---
@@ -315,6 +361,10 @@ export const App = () => {
     const [darkMode, setDarkMode] = useState(true);
     const [loading, setLoading] = useState(true);
 
+    // Pagination State
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+
     // Load Theme
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
@@ -324,8 +374,9 @@ export const App = () => {
     const loadBookmarks = async () => {
         setLoading(true);
         try {
-            const data = await API.getBookmarks(filterTag || undefined);
-            setBookmarks(data);
+            const res = await API.getBookmarks(filterTag || undefined, page);
+            setBookmarks(res.data);
+            setTotalPages(res.pagination.totalPages);
         } catch (err) {
             console.error(err);
         } finally {
@@ -335,6 +386,11 @@ export const App = () => {
 
     useEffect(() => {
         loadBookmarks();
+    }, [filterTag, page]);
+
+    // Reset page when tag changes
+    useEffect(() => {
+        setPage(1);
     }, [filterTag]);
 
     // Filter Logic
@@ -381,12 +437,12 @@ export const App = () => {
                 {/* Header */}
                 <header className="header">
                     <div className="logo">
-                        <div style={{ width: 32, height: 32, background: 'var(--accent)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                        <div className="logo-icon">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
                         </div>
                         Vibe Bookmarks
                     </div>
-                    <div style={{ display: 'flex', gap: '12px' }}>
+                    <div className="header-actions">
                         <button className="btn btn-ghost icon-btn" onClick={() => setDarkMode(!darkMode)}>
                             {darkMode ? <Icons.Sun /> : <Icons.Moon />}
                         </button>
@@ -408,7 +464,7 @@ export const App = () => {
                         />
                     </div>
                     {filterTag && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-card)', padding: '6px 12px', borderRadius: 8, border: '1px solid var(--accent)', color: 'var(--accent)', fontSize: '0.9rem', fontWeight: 600 }}>
+                        <div className="active-filter">
                             Tag: {filterTag}
                             <span style={{ cursor: 'pointer' }} onClick={() => setFilterTag(null)}><Icons.X /></span>
                         </div>
@@ -425,42 +481,69 @@ export const App = () => {
                         {filterTag && <button className="btn btn-ghost" onClick={() => setFilterTag(null)}>Clear Filters</button>}
                     </div>
                 ) : (
-                    <div style={{ display: 'grid', gap: '16px' }}>
-                        {filteredBookmarks.map(b => (
-                            <div key={b.id} className="card">
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                    <div>
-                                        <a href={b.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: 'inherit' }}>
-                                            <h3 style={{ margin: '0 0 4px 0', fontSize: '1.1rem', color: 'var(--accent)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                                                {b.title} <Icons.ExternalLink />
-                                            </h3>
-                                        </a>
-                                        {b.description && <p style={{ margin: '4px 0 12px 0', color: 'var(--text-secondary)', lineHeight: 1.5 }}>{b.description}</p>}
-                                        <div style={{ display: 'flex', flexWrap: 'wrap' }}>
-                                            {b.tags.map(tag => (
-                                                <span
-                                                    key={tag}
-                                                    className={`tag ${filterTag === tag ? 'active' : ''}`}
-                                                    onClick={(e) => { e.stopPropagation(); setFilterTag(filterTag === tag ? null : tag); }}
-                                                >
-                                                    {tag}
-                                                </span>
-                                            ))}
+                    <>
+                        <div style={{ display: 'grid', gap: '16px' }}>
+                            {filteredBookmarks.map(b => (
+                                <div key={b.id} className="card">
+                                    <div className="card-header">
+                                        <div className="card-content">
+                                            <a href={b.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
+                                                <h3 className="card-title">
+                                                    {b.title}
+                                                    <span className="opacity-0 group-hover:opacity-100 transition-opacity"><Icons.ExternalLink /></span>
+                                                </h3>
+                                            </a>
+                                            {b.description && <p className="card-desc">{b.description}</p>}
+                                            <div className="card-tags">
+                                                {b.tags.map(tag => (
+                                                    <span
+                                                        key={tag}
+                                                        className={`tag ${filterTag === tag ? 'active' : ''} `}
+                                                        onClick={(e) => { e.stopPropagation(); setFilterTag(filterTag === tag ? null : tag); }}
+                                                    >
+                                                        {tag}
+                                                        {filterTag === tag && <span className="close-icon">×</span>}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="card-actions">
+                                            <button className="btn btn-ghost icon-btn" onClick={() => handleEditClick(b)} title="Edit"><Icons.Edit /></button>
+                                            <button className="btn btn-ghost icon-btn" onClick={() => handleDelete(b.id)} style={{ color: 'var(--danger)' }} title="Delete"><Icons.Trash /></button>
                                         </div>
                                     </div>
-                                    <div style={{ display: 'flex', gap: '8px' }}>
-                                        <button className="btn btn-ghost icon-btn" onClick={() => handleEditClick(b)} title="Edit"><Icons.Edit /></button>
-                                        <button className="btn btn-ghost icon-btn" onClick={() => handleDelete(b.id)} style={{ color: 'var(--danger)' }} title="Delete"><Icons.Trash /></button>
+                                    <div className="card-footer">
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                            <span style={{ width: 16, height: 16, borderRadius: '50%', background: 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, textTransform: 'uppercase' }}>{new URL(b.url).hostname[0]}</span>
+                                            {new URL(b.url).hostname}
+                                        </span>
+                                        <span>•</span>
+                                        <span>{new Date(b.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                                     </div>
                                 </div>
-                                <div className="bookmark-meta">
-                                    <span className="bookmark-domain">{new URL(b.url).hostname}</span>
-                                    <span>•</span>
-                                    <span>{new Date(b.createdAt).toLocaleDateString()}</span>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                        {/* Pagination Controls */}
+                        <div className="pagination">
+                            <button
+                                className="btn btn-ghost"
+                                onClick={() => setPage(p => Math.max(1, p - 1))}
+                                disabled={page === 1}
+                                style={{ opacity: page === 1 ? 0.5 : 1 }}
+                            >
+                                Previous
+                            </button>
+                            <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Page {page} of {totalPages || 1}</span>
+                            <button
+                                className="btn btn-ghost"
+                                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                                disabled={page >= totalPages}
+                                style={{ opacity: page >= totalPages ? 0.5 : 1 }}
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </>
                 )}
 
                 {/* Modals */}
@@ -478,7 +561,7 @@ export const App = () => {
                         onCancel={() => setEditingBookmark(undefined)}
                     />
                 )}
-            </div>
+            </div >
         </>
     );
 };
