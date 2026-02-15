@@ -1,59 +1,93 @@
-# Vibe Bookmarks Manager
+# Vibe Bookmarks
 
-A full-stack, local-first Bookmark Manager application built with Electron, React, and SQLite.
+A modern, full-stack bookmark manager application built with React, Node.js, and SQLite. This application allows users to save, organize, and search for their favorite websites with a clean and responsive user interface.
 
-## 🚀 Features
+## 🚀 Technologies Used
 
-*   **Manage Bookmarks**: Create, read, update, and delete bookmarks with ease.
-*   **Tagging System**: Organize bookmarks with custom tags (max 5 per bookmark).
-*   **Smart Search**: Real-time filtering by title or URL.
-*   **Tag Filtering**: Click on tags to filter your view.
-*   **Dark Mode**: Built-in dark/light theme toggle.
-*   **Offline First**:
-    *   **Desktop App**: Uses SQLite (`better-sqlite3`) for robust, local data storage.
-    *   **Web Preview**: Gracefully falls back to LocalStorage when not running inside Electron.
-*   **Clean UI**: Modern, responsive interface using CSS-in-JS.
+### Frontend
+*   **React (v19)**: Component-based UI library.
+*   **Vite**: Fast build tool and development server.
+*   **TypeScript**: Static typing for better code quality and developer experience.
+*   **Vanilla CSS**: Custom styling using CSS variables for theming (Dark/Light mode).
 
-## 🛠 Technologies
+### Backend
+*   **Node.js & Express**: Lightweight REST API server.
+*   **SQLite (better-sqlite3)**: Serverless, zero-configuration SQL database engine for robust local storage.
+*   **Concurrently**: Utility to run both frontend and backend servers with a single command.
 
-*   **Frontend**: React
-*   **Desktop Runtime**: Electron
-*   **Database**: SQLite (via `better-sqlite3`)
-*   **IPC**: Secure Context Bridge for communication between React and Electron.
+## 🛠️ Setup Instructions
 
-## 📦 Installation & Usage
+### Prerequisites
+*   **Node.js** (v18 or higher recommended)
+*   **npm** (comes with Node.js)
 
-To run this application locally as a desktop app:
+### Installation
 
-1.  **Initialize Project**
+1.  **Clone the repository**:
     ```bash
-    npm init -y
+    git clone <repository-url>
+    cd <project-folder>
     ```
 
-2.  **Install Dependencies**
+2.  **Install dependencies**:
     ```bash
-    npm install electron better-sqlite3
+    npm install
     ```
+    This will install both frontend and backend dependencies including `express`, `cors`, `better-sqlite3`, and `vite`.
 
-3.  **Configure Package**
-    Update your `package.json` to point to the main process file:
-    ```json
-    {
-      "main": "main.js",
-      "scripts": {
-        "start": "electron ."
-      }
-    }
-    ```
+## ▶️ Running the Application
 
-4.  **Run**
-    ```bash
-    npm start
-    ```
+To start the application, simply run:
+
+```bash
+npm run dev
+```
+
+This command uses `concurrently` to start:
+*   **Backend API** on `http://localhost:3000`
+*   **Frontend App** on `http://localhost:5173`
+
+Open your browser and navigate to `http://localhost:5173` to use the app.
+
+## 📐 Design Choices
+
+### 1. Client-Server Architecture
+The project is split into two distinct logical parts:
+*   **Frontend**: Handles UI, user state, and interactions. It interacts with the backend purely via HTTP requests (REST API).
+*   **Backend**: Manages the SQLite database and business logic. It exposes a JSON API.
+
+This separation ensures that the frontend is decoupled from the database implementation, allowing for easier future upgrades or migration to a different backend if needed.
+
+### 2. SQLite for Data Persistence
+SQLite was chosen for its zero-configuration nature. It requires no separate database server process, making the application easy to run locally while providing full SQL capabilities (Relational data, Transactions, Foreign Keys).
+*   **WAL Mode**: The database uses Write-Ahead Logging for better concurrency and performance.
+*   **Data Integrity**: Foreign keys are enforced to ensure that deleting a bookmark also cleans up its associated tags.
+
+### 3. CSS-in-JS (Portable Styling)
+Styles are defined within `App.tsx` using template literals and injected dynamically.
+*   **Why?**: This keeps the component self-contained and portable for this specific project scale.
+*   **Theming**: CSS variables (`var(--bg-primary)`, `var(--accent)`) are used to implement a seamless Dark/Light mode toggle.
+
+### 4. Direct API Calls (Fetch)
+Instead of using a heavy data fetching library, native `fetch` with `async/await` is used. This keeps the bundle size small and logic transparent.
+
+## 🔌 API Endpoints
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/bookmarks` | Retrieve all bookmarks. Supports `?tag=name` filtering. |
+| `POST` | `/bookmarks` | Create a new bookmark. Payload: `{ url, title, description, tags[] }` |
+| `PUT` | `/bookmarks/:id` | Update a bookmark. |
+| `DELETE` | `/bookmarks/:id` | Delete a bookmark permanently. |
 
 ## 📂 Project Structure
 
-*   **`main.js`**: Electron main process. Handles the window creation and direct SQLite database operations.
-*   **`preload.js`**: Security script that creates a bridge between the Electron backend and the React frontend.
-*   **`index.tsx`**: The React application source code containing the UI, state management, and logic.
-*   **`index.html`**: The HTML entry point for the application.
+```
+├── App.tsx             # Main React component and UI logic
+├── index.tsx           # React entry point
+├── server.js           # Express backend server & Database logic
+├── bookmarks.db        # SQLite database file (auto-generated)
+├── vite.config.ts      # Vite configuration
+├── package.json        # Dependencies and scripts
+└── public/             # Static assets
+```
